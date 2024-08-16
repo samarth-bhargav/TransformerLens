@@ -16,7 +16,7 @@ class PosEmbed(nn.Module):
     def __init__(self, cfg: HookedTransformerConfig):
         super().__init__()
         self.cfg = cfg
-        self.W_pos = nn.Parameter(t.empty((cfg.n_ctx, cfg.d_model)))
+        self.W_pos = nn.Parameter(torch.empty((cfg.n_ctx, cfg.d_model)))
         nn.init.normal_(self.W_pos, std=self.cfg.init_range)
 
     def forward(self, vecs: Float[Tensor, "batch seq d_vocab"]) -> Float[Tensor, "batch seq d_model"]:
