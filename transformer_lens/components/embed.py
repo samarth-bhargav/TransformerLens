@@ -8,27 +8,19 @@ import torch
 import torch.nn as nn
 from jaxtyping import Float, Int
 
+import einops
 from transformer_lens.components import LayerNorm
 from transformer_lens.HookedTransformerConfig import HookedTransformerConfig
 
 
 # Embed & Unembed
 class Embed(nn.Module):
-    def __init__(self, cfg: Union[Dict, HookedTransformerConfig]):
+    def __init__(self, cfg: HookedTransformerConfig):
         super().__init__()
-        self.cfg = HookedTransformerConfig.unwrap(cfg)
-        self.W_E: Float[torch.Tensor, "d_vocab d_model"] = nn.Parameter(
-            torch.empty(self.cfg.d_vocab, self.cfg.d_model, dtype=self.cfg.dtype)
-        )
-        # Some models (e.g. Bloom) need post embedding layer norm
-        if self.cfg.post_embedding_ln:
-            self.ln = LayerNorm(self.cfg)
+        self.cfg = cfg
+        self.W_E = nn.Parameter(t.empty(cfg.d_vocab, cfg.d_model))
+        nn.init.normal_(self.W_E, std=self.cfg.init_range)
 
-    def forward(
-        self, tokens: Int[torch.Tensor, "batch pos"]
-    ) -> Float[torch.Tensor, "batch pos d_model"]:
-        # If A has shape [a, b] and B has shape [c, d], then A[:, B] has shape [a, c, d]
-        # B acts as a tensor of indices into the second dimension (so >=0 and <b)
-        if self.cfg.post_embedding_ln:
-            return self.ln(self.W_E[tokens, :])
-        return self.W_E[tokens, :]
+    def forward(self, vecs: Float[Tensor, "batch position d_vocab"]) -> Float[Tensor, "batch position d_model"]:
+        # SOLUTION
+        return einops.einsum(vecs, self.W_E, "batch position d_vocab, d_vocab d_model -> batch position d_model")
