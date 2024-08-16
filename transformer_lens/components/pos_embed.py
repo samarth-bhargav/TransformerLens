@@ -6,6 +6,7 @@ from typing import Dict, Optional, Union
 
 import einops
 import torch
+from torch import Tensor
 import torch.nn as nn
 from jaxtyping import Float, Int
 
