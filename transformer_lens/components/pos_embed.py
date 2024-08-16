@@ -19,7 +19,8 @@ class PosEmbed(nn.Module):
         self.W_pos = nn.Parameter(torch.empty((cfg.n_ctx, cfg.d_model)))
         nn.init.normal_(self.W_pos, std=self.cfg.init_range)
 
-    def forward(self, vecs: Float[Tensor, "batch seq d_vocab"]) -> Float[Tensor, "batch seq d_model"]:
+    def forward(self, vecs: Float[Tensor, "batch seq d_vocab"], past_kv_pos_offset: int = 0,
+        attention_mask: Optional[Int[torch.Tensor, "batch offset_pos"]] = None) -> Float[Tensor, "batch seq d_model"]:
         # SOLUTION
         batch, seq_len, _ = vecs.shape
         return einops.repeat(self.W_pos[:seq_len], "seq d_model -> batch seq d_model", batch=batch)
