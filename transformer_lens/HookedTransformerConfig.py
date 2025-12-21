@@ -243,6 +243,7 @@ class HookedTransformerConfig:
     use_normalization_before_and_after: bool = False
     attn_scores_soft_cap: float = -1.0
     output_logits_soft_cap: float = -1.0
+    use_qk_norm: bool = False
 
     def __post_init__(self):
         if self.n_heads == -1:
@@ -276,6 +277,8 @@ class HookedTransformerConfig:
         if self.initializer_range < 0 and self.init_mode != "gpt2":
             # This is the gain parameter for the weight initialisation
             self.initializer_range = 1.0
+        # Set init_range as alias for initializer_range (used by Embed/PosEmbed components)
+        self.init_range = self.initializer_range
 
         if self.d_vocab_out == -1:
             # d_vocab_out defaults to d_vocab, unless there's an algorithmic task

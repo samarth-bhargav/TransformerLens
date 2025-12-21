@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -53,6 +53,13 @@ class GroupedQueryAttention(AbstractAttention):
         self._b_V = nn.Parameter(
             torch.zeros(cfg.n_key_value_heads, self.cfg.d_head, dtype=cfg.dtype)
         )
+        
+        # Q/K normalization (used by Qwen3 and similar models)
+        self.use_qk_norm = getattr(cfg, "use_qk_norm", False)
+        if self.use_qk_norm:
+            self.q_norm_w = nn.Parameter(torch.ones(cfg.d_head, dtype=cfg.dtype))
+            self.k_norm_w = nn.Parameter(torch.ones(cfg.d_head, dtype=cfg.dtype))
+            self.qk_norm_eps = getattr(cfg, "eps", 1e-6)
 
     @property
     def W_K(self):
@@ -85,6 +92,17 @@ class GroupedQueryAttention(AbstractAttention):
     @b_V.setter
     def b_V(self, value):
         self._b_V = value
+
+    def _apply_qk_norm(
+        self, 
+        x: Float[torch.Tensor, "batch pos heads d_head"], 
+        weight: Float[torch.Tensor, "d_head"]
+    ) -> Float[torch.Tensor, "batch pos heads d_head"]:
+        """Apply RMSNorm to Q or K vectors."""
+        # RMSNorm: x / rms(x) * weight
+        # rms(x) = sqrt(mean(x^2) + eps)
+        rms = torch.sqrt(torch.mean(x ** 2, dim=-1, keepdim=True) + self.qk_norm_eps)
+        return (x / rms) * weight
 
     def calculate_qkv_matrices(
         self,
@@ -123,15 +141,18 @@ class GroupedQueryAttention(AbstractAttention):
             else simple_attn_linear
         )
 
-        q = self.hook_q(
-            attn_fn(query_input, self.W_Q, self.b_Q)
-        )  # [batch, pos, head_index, d_head]
-        k = self.hook_k(
-            attn_fn(key_input, self._W_K, self._b_K)
-        )  # [batch, pos, head_index, d_head]
-        v = self.hook_v(
-            attn_fn(value_input, self._W_V, self._b_V)
-        )  # [batch, pos, head_index, d_head]
+        q = attn_fn(query_input, self.W_Q, self.b_Q)  # [batch, pos, head_index, d_head]
+        k = attn_fn(key_input, self._W_K, self._b_K)  # [batch, pos, kv_head_index, d_head]
+        v = attn_fn(value_input, self._W_V, self._b_V)  # [batch, pos, kv_head_index, d_head]
+        
+        # Apply Q/K normalization if enabled (used by Qwen3)
+        if self.use_qk_norm:
+            q = self._apply_qk_norm(q, self.q_norm_w)
+            k = self._apply_qk_norm(k, self.k_norm_w)
+        
+        q = self.hook_q(q)
+        k = self.hook_k(k)
+        v = self.hook_v(v)
         return q, k, v
 
     def calculate_attention_scores(

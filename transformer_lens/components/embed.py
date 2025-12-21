@@ -22,6 +22,15 @@ class Embed(nn.Module):
         self.W_E = nn.Parameter(torch.empty(cfg.d_vocab, cfg.d_model))
         nn.init.normal_(self.W_E, std=self.cfg.init_range)
 
-    def forward(self, vecs: Float[Tensor, "batch position d_vocab"]) -> Float[Tensor, "batch position d_model"]:
-        # SOLUTION
-        return einops.einsum(vecs, self.W_E, "batch position d_vocab, d_vocab d_model -> batch position d_model")
+    def forward(
+        self, tokens: Int[Tensor, "batch position"]
+    ) -> Float[Tensor, "batch position d_model"]:
+        """Embed tokens using the embedding matrix W_E.
+        
+        Args:
+            tokens: Token IDs of shape [batch, position]
+            
+        Returns:
+            Embeddings of shape [batch, position, d_model]
+        """
+        return self.W_E[tokens]
